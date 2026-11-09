@@ -1,8 +1,6 @@
 /* 컨베이어 상세 화면 전용 스타일. 공통 틀(header·sidebar·footer)은 ../style.css를 그대로 쓴다. */
 canvas.kit-canvas{display:block;width:100%;height:100%;touch-action:none}
 .viewport{background:#e9e8e4}
-.back{color:#f2b75c;text-decoration:none;font-size:13px;font-weight:700;letter-spacing:1px;white-space:nowrap}
-.back:hover{text-decoration:underline}
 .bin{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #26333a;font-size:13px}
 .bin i{width:12px;height:12px;border-radius:3px}
 .bin strong{margin-left:auto;font-size:22px;font-weight:600}

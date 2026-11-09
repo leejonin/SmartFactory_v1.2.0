@@ -4,15 +4,16 @@ import { FactorySimulation } from './factory.js';
 import { LAYERS } from './layout.js';
 const REGIONS=LAYERS.flatMap(layer=>layer.regions);
 import { createScene,COLORS } from './scene.js';
+import { sceneSwitch, rememberLine } from './sceneSwitch.js';
 
 document.querySelector('#app').innerHTML=`
-<header><div class="brand">FL<b>O</b>W</div><div class="divider"></div><div><h1>공장 물류 시뮬레이션</h1><p>FACTORY LOGISTICS / PROCESS CONTROL</p></div><div class="live"><i class="dot"></i><span id="running-label">시뮬레이션 실행 중</span></div></header>
+<header><div class="brand">FL<b>O</b>W</div><div class="divider"></div><div><h1>공장 물류 시뮬레이션</h1><p>FACTORY LOGISTICS / PROCESS CONTROL</p></div>${sceneSwitch('factory')}<div class="live"><i class="dot"></i><span id="running-label">시뮬레이션 실행 중</span></div></header>
 <main class="workspace"><section class="viewport" aria-label="공장 3D 장면"><div class="scene-heading"><div class="eyebrow">INBOUND → SORT → DISPATCH</div><h2>물류의 흐름을 한눈에.</h2><p id="process-summary">한 공장 · 공정 1개 · 출하 도크 3개</p></div><div class="asset-status" id="asset-status">장비 모델 불러오는 중…</div><div class="canvas-note">드래그 이동 · 휠 확대 · 오른쪽 드래그 회전 · 컨베이어 클릭 시 상세</div><nav class="camera-tabs" aria-label="카메라 시점"><button data-view="top">탑뷰</button><button data-view="qr">QR 뷰</button><button data-view="agv">AGV 뷰</button></nav><div id="fatal" hidden></div></section>
 <aside class="sidebar"><section class="section"><div class="section-title"><h2>운영 현황</h2><span class="tag">SIMULATION</span></div><div class="metrics"><div class="metric"><label>운반 완료</label><strong id="total">0</strong><small>상자</small></div><div class="metric"><label>이송 중</label><strong id="active">0</strong><small>상자</small></div></div><div class="control-row"><button class="control primary" id="pause">일시정지</button><button class="control" id="reset">초기화</button><select id="speed" aria-label="시뮬레이션 속도"><option value="1">1× 속도</option><option value="2">2× 속도</option><option value="5">5× 속도</option></select></div><div class="status-line"><label for="process-count">공정 수</label><select id="process-count"><option value="1" selected>1개</option><option value="2">2개</option><option value="3">3개</option><option value="4">4개</option></select></div><div class="status-line"><label for="fleet">공정당 AGV 대수</label><select id="fleet">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i===3?'selected':''}>${i+1}대</option>`).join('')}</select></div><p class="subtle">공정 수·AGV 대수 변경 시 운반·통계가 초기화됩니다.</p><div class="status-line"><span>경과 시간</span><b id="elapsed">00:00</b></div></section>
 <section class="section"><div class="section-title"><h2>목적지별 출하</h2><span class="eyebrow" id="dock-count">3 DOCKS</span></div>${REGIONS.map((r,i)=>`<div class="route" data-process="${Math.floor(i/3)+1}"><i class="route-mark" style="background:${COLORS[i%3]}"></i><span>${r}<small>공정 ${Math.floor(i/3)+1} / DOCK 0${i%3+1}</small></span><strong id="dock-${i}">0</strong></div>`).join('')}</section>
 <section class="section"><div class="section-title"><h2>QR 판독 / AGV</h2><span class="tag" id="scan-state">대기</span></div><div class="qr-panel"><canvas id="qr-preview" width="180" height="180" aria-label="최근 판독 목적지 QR"></canvas><div><strong id="read-region">상자 도착 대기</strong><p id="read-id">컨베이어 끝에서 판독</p></div></div><div id="agv-states"></div><button id="retry" class="control retry" hidden>QR 다시 읽기</button></section>
 <section class="section"><div class="section-title"><h2>최근 작업</h2><span class="eyebrow">EVENT LOG</span></div><div class="events" id="events"><span>첫 상자를 기다리고 있습니다.</span></div><p class="subtle">각 공정 · 3초마다 생성 시도<br>컨베이어 0.5 m/s · AGV ${AGV_SPEED.toFixed(1)} m/s · 구간 예약 · 병렬 이동</p></section></aside></main>
-<footer><span>● 로컬 시뮬레이션</span><span>1 unit = 1 m · 임시 운영값</span><span>FLOW / v0.0.19</span></footer>`;
+<footer><span>● 로컬 시뮬레이션</span><span>1 unit = 1 m · 임시 운영값</span><span>FLOW / v0.0.20</span></footer>`;
 const sim=new FactorySimulation({agvCount:4});
 const images=sim.qrImages.flat();
 const element=id=>document.getElementById(id);
@@ -45,7 +46,7 @@ for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>
 /** 비활성 탭에서 경과한 시간을 건너뛰어 복귀 시 갑작스런 이동을 막는다. */
 document.addEventListener('visibilitychange',()=>{last=performance.now();accumulator=0;});
 try {
-  scene=createScene(document.querySelector('.viewport'),sim.qrImages,text=>element('asset-status').textContent=text,id=>{location.href=`./conveyor.html?line=${id}`;});
+  scene=createScene(document.querySelector('.viewport'),sim.qrImages,text=>element('asset-status').textContent=text,id=>{rememberLine(id);location.href=`./conveyor.html?line=${id}`;});
   /** 렌더 속도와 무관하게 1/60초 고정 단계로 시뮬레이션을 실행한다. */
   function frame(now){
     const dt=Math.min((now-last)/1000,0.1);last=now;

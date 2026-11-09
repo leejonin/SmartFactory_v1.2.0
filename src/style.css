@@ -6,3 +6,15 @@ button.control{white-space:nowrap;padding:9px 8px}.control-row select{min-width:
 
 /* 선택하지 않은 공정의 목적지 행은 레이아웃에서도 제외한다. */
 .route[hidden]{display:none;}
+
+/* 공장 전체 ↔ 컨베이어 상세 화면 전환 버튼(두 화면 공통) */
+.scene-switch{margin-left:auto;display:flex;padding:4px;gap:3px;border:1px solid #33444d;background:#0d171d;border-radius:7px}
+.scene-switch a{color:#aabac2;text-decoration:none;font-size:12px;padding:9px 16px;border-radius:4px;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.scene-switch a small{font-size:10px;color:#7f96a0}
+.scene-switch a:hover{background:#1e2d35;color:#e5eced}
+.scene-switch a.active{background:#f2b75c;color:#19272c;font-weight:700}
+.scene-switch a.active small{color:#4a3a1c}
+.scene-switch a:focus-visible{outline:2px solid #f5bb62;outline-offset:2px}
+.scene-switch+.live{margin-left:18px}
+@media(max-width:900px){.scene-switch a{padding:8px 11px}.scene-switch a small{display:none}}
+@media(max-width:640px){header{gap:10px}header>div:nth-child(3) p{display:none}.scene-switch a{padding:7px 9px;font-size:11px}}
