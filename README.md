@@ -2,7 +2,7 @@
 
 한 공장 안의 선택한 1~4개 공정에서 상자가 컨베이어를 지나 QR 판독을 받고, AGV(자동 운반 차량)에 실려 목적지 도크까지 이동하는 과정을 보여주는 한국어 3D 웹앱입니다. 브라우저에서 물류 흐름을 관찰하는 시뮬레이션이며 실제 설비를 제어하지 않습니다.
 
-- 앱 버전: **v0.0.20** — package.json과 화면 기준. 저장소 이름 `SmartFactory_v1.1.0`과 구분합니다.
+- 앱 버전: **v0.0.20** — package.json과 화면 기준. 저장소 이름 `SmartFactory_v1.1.1`과 구분합니다.
 - README 문서 버전: v0.0.21
 - 최초 생성: 2026-11-02 (KST) / 수정: 2026-11-02 (KST)
 - 기능 ID: `SW_Browser_Logistics_001` / 관련 기능 ID: 없음
@@ -54,8 +54,8 @@ flowchart LR
 Git과 위 요구 조건에 맞는 Node.js를 설치한 뒤, 원하는 작업 폴더의 터미널에서 실행합니다.
 
 ```powershell
-git clone https://github.com/leejonin/SmartFactory_v1.1.0.git
-cd SmartFactory_v1.1.0
+git clone https://github.com/leejonin/SmartFactory_v1.1.1.git
+cd SmartFactory_v1.1.1
 npm ci
 npm run dev
 ```
@@ -75,11 +75,11 @@ npm run preview
 
 ## GitHub Pages 배포
 
-배포 주소: [SmartFactory 실행](https://leejonin.github.io/SmartFactory_v1.1.0/)
+배포 주소: [SmartFactory 실행](https://leejonin.github.io/SmartFactory_v1.1.1/)
 
 `.github/workflows/pages.yml`이 main 브랜치 push 또는 수동 실행을 받아 Node.js 24에서 `npm ci` → `npm test` → `npm run build`를 실행하고 `dist/`를 GitHub Pages에 배포합니다. 저장소 Settings → Pages의 Source는 GitHub Actions로 설정합니다. 배포 성공 여부는 저장소 Actions의 `GitHub Pages 배포` 실행 결과에서 확인합니다.
 
-`vite.config.js`의 base는 `/SmartFactory_v1.1.0/`입니다. JavaScript·CSS와 GLB 주소 모두 이 하위 경로를 사용합니다. 로컬 dev·preview에서도 터미널에 표시되는 이 경로의 주소를 엽니다. 저장소 이름이나 배포 경로를 바꾸면 base와 위 링크를 함께 바꿔야 합니다.
+`vite.config.js`의 base는 `/SmartFactory_v1.1.1/`입니다. JavaScript·CSS와 GLB 주소 모두 이 하위 경로를 사용합니다. 로컬 dev·preview에서도 터미널에 표시되는 이 경로의 주소를 엽니다. 저장소 이름이나 배포 경로를 바꾸면 base와 위 링크를 함께 바꿔야 합니다.
 
 ## 화면 조작
 
