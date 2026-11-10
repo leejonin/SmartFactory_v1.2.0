@@ -13,7 +13,7 @@ document.querySelector('#app').innerHTML=`
 <section class="section"><div class="section-title"><h2>목적지별 출하</h2><span class="eyebrow" id="dock-count">3 DOCKS</span></div>${REGIONS.map((r,i)=>`<div class="route" data-process="${Math.floor(i/3)+1}"><i class="route-mark" style="background:${COLORS[i%3]}"></i><span>${r}<small>공정 ${Math.floor(i/3)+1} / DOCK 0${i%3+1}</small></span><strong id="dock-${i}">0</strong></div>`).join('')}</section>
 <section class="section"><div class="section-title"><h2>QR 판독 / AGV</h2><span class="tag" id="scan-state">대기</span></div><div class="qr-panel"><canvas id="qr-preview" width="180" height="180" aria-label="최근 판독 목적지 QR"></canvas><div><strong id="read-region">상자 도착 대기</strong><p id="read-id">컨베이어 끝에서 판독</p></div></div><div id="agv-states"></div><button id="retry" class="control retry" hidden>QR 다시 읽기</button></section>
 <section class="section"><div class="section-title"><h2>최근 작업</h2><span class="eyebrow">EVENT LOG</span></div><div class="events" id="events"><span>첫 상자를 기다리고 있습니다.</span></div><p class="subtle">각 공정 · 3초마다 생성 시도<br>컨베이어 0.5 m/s · AGV ${AGV_SPEED.toFixed(1)} m/s · 구간 예약 · 병렬 이동</p></section></aside></main>
-<footer><span>● 로컬 시뮬레이션</span><span>1 unit = 1 m · 임시 운영값</span><span>FLOW / v1.1.2</span></footer>`;
+<footer><span>● 로컬 시뮬레이션</span><span>1 unit = 1 m · 임시 운영값</span><span>FLOW / v1.2.0</span></footer>`;
 const sim=new FactorySimulation({agvCount:4});
 const images=sim.qrImages.flat();
 const element=id=>document.getElementById(id);
