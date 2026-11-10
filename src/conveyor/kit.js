@@ -4,8 +4,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { KIT, armDirection } from './sorter.js';
+import { createArduinoUno, createBreadboard, UNO_SIZE } from './arduino.js';
 // 실측 부품 모델: FreeCAD-library(CC-BY 3.0)의 STEP을 GLB로 변환. 출처·저작자 표시는 Asset/kit-parts/LICENSE.txt.
-import unoUrl from '../../Asset/kit-parts/uno.glb?url';
 import servoUrl from '../../Asset/kit-parts/sg90.glb?url';
 import hornUrl from '../../Asset/kit-parts/sg90_horn.glb?url';
 import proxUrl from '../../Asset/kit-parts/prox_sensor.glb?url';
@@ -65,9 +65,17 @@ function wire(parent, points, color, radius = 0.0009) {
   const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)), false, 'catmullrom', 0.4);
   return mesh(parent, new THREE.TubeGeometry(curve, Math.max(24, points.length * 16), radius, 6), new THREE.MeshStandardMaterial({ color, roughness: 0.45 }));
 }
-/** 3가닥 서보 케이블(갈색·빨강·주황)처럼 나란한 전선 묶음. */
-function bundle(parent, points, colors, gap = 0.0019) {
-  colors.forEach((color, i) => wire(parent, points.map(([x, y, z]) => [x, y + (i - (colors.length - 1) / 2) * gap * 0.3, z + (i - (colors.length - 1) / 2) * gap]), color));
+/** 3가닥 서보 케이블(갈색·빨강·주황)처럼 나란한 전선 묶음.
+ * @param {THREE.Object3D} parent 붙일 부모. @param {number[][]} points 묶음이 지나는 경유점(월드 좌표, m).
+ * @param {string[]} colors 전선 색(순서대로). @param {number} [gap] 전선 간격(m).
+ * @param {number[][]} [starts] 전선마다 실제로 꽂힌 시작점(커넥터 윗면). 주면 그 점에서 위로 8mm 올라온 뒤 묶음 경로를 따른다.
+ */
+function bundle(parent, points, colors, gap = 0.0019, starts = null) {
+  colors.forEach((color, i) => {
+    const path = points.map(([x, y, z]) => [x, y + (i - (colors.length - 1) / 2) * gap * 0.3, z + (i - (colors.length - 1) / 2) * gap]);
+    if (starts) path.unshift(starts[i], [starts[i][0], starts[i][1] + 0.008, starts[i][2]]);
+    wire(parent, path, color);
+  });
 }
 /** GLB 원본에서 최상단(축 끝) 정점들의 중심을 찾는다. 서보 출력축·혼 허브 정렬에 쓴다. */
 function topCenter(object) {
@@ -171,22 +179,69 @@ export function createKitScene(container, onStatus) {
   const timing = new THREE.CatmullRomCurve3([[0.0075, 0.04], [0.0075, DIM.rollerY], [0, DIM.rollerY + 0.0077], [-0.0075, DIM.rollerY], [-0.0075, 0.04], [0, 0.04 - 0.0077]].map(([x, y]) => new THREE.Vector3(x, y, 0.0035)), true);
   mesh(drive, new THREE.TubeGeometry(timing, 80, 0.0011, 6, true), M.rubber);
 
-  // 제어부: 투명 아크릴 받침 + 황동 스페이서 + 아두이노(실측 모델).
-  const board = new THREE.Group(); board.position.set(0.3, 0, 0.29); board.rotation.y = 0.12; kit.add(board);
+  // 제어부: 투명 아크릴 받침 + 황동 스페이서 + Arduino UNO R3(표준 핀 배치로 모델링) + 모터 드라이버, 옆에 400구 브레드보드.
+  const board = new THREE.Group(); board.position.set(0.3, 0, 0.3); kit.add(board);
   mesh(board, new THREE.BoxGeometry(0.11, 0.003, 0.085), acrylic('#eef8ff', 0.35), 0, 0.0015, 0).castShadow = false;
-  for (const [x, z] of [[-0.031, -0.024], [0.032, -0.019], [-0.031, 0.024], [0.034, 0.024]]) {
+  const uno = createArduinoUno(); uno.group.position.set(-UNO_SIZE.w / 2, 0.014, UNO_SIZE.h / 2); board.add(uno.group);
+  for (const [hx, hz] of uno.holes) {
+    const x = hx - UNO_SIZE.w / 2, z = hz + UNO_SIZE.h / 2;
     mesh(board, new THREE.CylinderGeometry(0.0022, 0.0022, 0.011, 6), M.brass, x, 0.0085, z);
+    mesh(board, new THREE.CylinderGeometry(0.0027, 0.0027, 0.0012, 12), M.steel, x, 0.0162, z);
     mesh(board, new THREE.BoxGeometry(0.008, 0.003, 0.008), M.rubber, x, -0.001, z);
   }
-  // 전선: 서보 2개(갈색·빨강·주황), 근접센서, 컬러센서, 모터, 전원 케이블.
-  // 보드 → 각 장치. 상자를 피해 책상 위와 컨베이어 아래(프로파일 밑 빈 공간)로 지나간다.
-  const servoCable = ['#5a3a22', '#c22a24', '#e88a1f'];
-  bundle(kit, [[0.292, 0.026, 0.263], [0.3, 0.004, 0.22], [0.315, 0.003, 0.12], [0.33, 0.004, 0.07], [0.39, 0.06, 0.07], [gate('yellow')[0] + 0.02, 0.078, gate('yellow')[2] + 0.004]], servoCable);
-  bundle(kit, [[0.298, 0.026, 0.262], [0.29, 0.003, 0.2], [0.3, 0.003, 0.0], [0.54, 0.003, -0.06], [0.535, 0.05, -0.072], [gate('green')[0] + 0.02, 0.078, gate('green')[2] - 0.004]], servoCable);
-  bundle(kit, [[0.28, 0.026, 0.264], [0.26, 0.003, 0.2], [0.22, 0.003, 0.0], [0.2, 0.003, -0.14], [0.21, 0.08, -0.145], [KIT.irX, 0.112, -0.139]], ['#1b1b1b', '#c22a24', '#e2c21c'], 0.0016);
-  bundle(kit, [[0.286, 0.026, 0.264], [0.275, 0.003, 0.2], [0.265, 0.003, 0.0], [0.28, 0.003, -0.09], [KIT.sensorX - 0.004, 0.06, -0.085], [KIT.sensorX - 0.006, 0.14, -0.078]], ['#1b1b1b', '#c22a24', '#2f6fd1', '#e2c21c'], 0.0016);
-  bundle(kit, [[0.322, 0.026, 0.265], [0.38, 0.003, 0.27], [0.56, 0.003, 0.19], [0.575, 0.02, 0.125], [L, 0.04, 0.105]], ['#c22a24', '#1b1b1b'], 0.0018);
-  wire(kit, [[0.25, 0.016, 0.31], [0.2, 0.003, 0.34], [0.12, 0.003, 0.35], [0.04, 0.004, 0.355]], '#151515', 0.0019);
+  const breadboard = createBreadboard(); breadboard.group.position.set(0.405, 0, 0.3); kit.add(breadboard.group);
+  // 모터 드라이버(L9110S형 소형 모듈): 아두이노 핀은 모터 전류를 직접 감당하지 못하므로 드라이버를 거친다.
+  const driver = new THREE.Group(); driver.position.set(0.0455, 0.003, 0); board.add(driver);
+  mesh(driver, new THREE.BoxGeometry(0.019, 0.0016, 0.026), new THREE.MeshStandardMaterial({ color: '#b3261e', roughness: 0.55 }), 0, 0.0028, 0);
+  for (const [x, z] of [[-0.007, -0.011], [0.007, -0.011], [-0.007, 0.011], [0.007, 0.011]]) mesh(driver, new THREE.CylinderGeometry(0.0012, 0.0012, 0.002, 8), M.brass, x, 0.001, z);
+  for (const z of [-0.0045, 0.0045]) mesh(driver, new THREE.BoxGeometry(0.004, 0.0012, 0.005), M.black, 0.001, 0.0042, z);
+  const terminalMat = new THREE.MeshStandardMaterial({ color: '#2a6fd6', roughness: 0.5 });
+  for (const z of [-0.0062, 0.0062]) mesh(driver, new THREE.BoxGeometry(0.0075, 0.0085, 0.0098), terminalMat, 0.0055, 0.0078, z);
+  const DRIVER_PINS = { VCC: -0.0038, GND: -0.0013, IA: 0.0013, IB: 0.0038 }; // 드라이버 기준 z
+  scene.updateMatrixWorld(true);
+
+  // 배선: 점퍼선 끝의 검정 플러그를 헤더·브레드보드 구멍에 꽂는다. 5V·GND는 브레드보드 전원 레일로 나눠 각 장치에 공급한다.
+  const dupont = new THREE.BoxGeometry(0.00254, 0.014, 0.00254);
+  /** 구멍(holder 좌표 p) 위에 플러그 하우징을 꽂고, 전선이 나오는 하우징 윗면의 월드 좌표를 돌려준다. */
+  const plugAt = (holder, p) => { mesh(holder, dupont, M.black, p.x, p.y + 0.007, p.z); return holder.localToWorld(new THREE.Vector3(p.x, p.y + 0.014, p.z)).toArray(); };
+  /** 두 플러그 사이 점퍼선: 각 끝에서 위로 8mm 나온 뒤 둥글게 넘어간다. */
+  const jumper = (a, b, color, lift = 0.022) => wire(kit, [a, [a[0], a[1] + 0.008, a[2]], [(a[0] + b[0]) / 2, Math.max(a[1], b[1]) + lift, (a[2] + b[2]) / 2], [b[0], b[1] + 0.008, b[2]], b], color);
+  const pinOf = name => plugAt(uno.group, uno.pin(name));
+  const holeOf = (col, row) => plugAt(breadboard.group, breadboard.hole(col, row));
+  /** 장치 케이블 끝 커넥터(여러 핀 일체형 검정 하우징)를 브레드보드 한 행의 연속된 열에 꽂고, 핀별 전선 출구(월드)를 돌려준다. */
+  const deviceConnector = (cols, row) => {
+    const ps = cols.map(c => breadboard.hole(c, row)), cx = (ps[0].x + ps[ps.length - 1].x) / 2;
+    mesh(breadboard.group, new THREE.BoxGeometry(0.00254 * cols.length, 0.014, 0.00254), M.black, cx, ps[0].y + 0.007, ps[0].z);
+    return ps.map(p => breadboard.group.localToWorld(new THREE.Vector3(p.x, p.y + 0.014, p.z)).toArray());
+  };
+  const RED = '#c22a24', BLACK = '#1b1b1b';
+  // 아두이노 전원 → 위 레일, 위·아래 레일 연결.
+  jumper(pinOf('5V'), holeOf(4, 'top+'), RED, 0.03); jumper(pinOf('GND'), holeOf(5, 'top-'), BLACK, 0.03);
+  jumper(holeOf(29, 'top+'), holeOf(29, 'bot+'), RED, 0.012); jumper(holeOf(28, 'top-'), holeOf(28, 'bot-'), BLACK, 0.012);
+  /** 장치 하나: 커넥터를 g행에 꽂고 G·V는 아래 레일, 신호선은 아두이노 핀으로 잇는다. 반환값은 장치 케이블 시작점. */
+  const device = (cols, signals) => {
+    const starts = deviceConnector(cols, 'g');
+    jumper(holeOf(cols[0], 'j'), holeOf(cols[0], 'bot-'), BLACK, 0.008); jumper(holeOf(cols[1], 'j'), holeOf(cols[1], 'bot+'), RED, 0.008);
+    signals.forEach(([pinName, color], k) => jumper(holeOf(cols[2 + k], 'i'), pinOf(pinName), color, 0.035));
+    return starts;
+  };
+  const servoCable = ['#5a3a22', RED, '#e88a1f'];
+  // 서보: 노랑 D9, 초록 D10 (갈색 G · 빨강 V · 주황 신호). 근접센서 D2. 컬러센서(I2C) A4 SDA · A5 SCL.
+  bundle(kit, [[0.36, 0.004, 0.25], [0.33, 0.003, 0.12], [0.33, 0.004, 0.07], [0.39, 0.06, 0.07], [gate('yellow')[0] + 0.02, 0.078, gate('yellow')[2] + 0.004]], servoCable, 0.0019, device([3, 4, 5], [['D9', '#e88a1f']]));
+  bundle(kit, [[0.37, 0.004, 0.252], [0.31, 0.003, 0.2], [0.3, 0.003, 0.0], [0.54, 0.003, -0.06], [0.535, 0.05, -0.072], [gate('green')[0] + 0.02, 0.078, gate('green')[2] - 0.004]], servoCable, 0.0019, device([8, 9, 10], [['D10', '#7b4fc9']]));
+  bundle(kit, [[0.38, 0.004, 0.254], [0.26, 0.003, 0.2], [0.22, 0.003, 0.0], [0.2, 0.003, -0.14], [0.21, 0.08, -0.145], [KIT.irX, 0.112, -0.139]], [BLACK, RED, '#e2c21c'], 0.0016, device([14, 15, 16], [['D2', '#ececec']]));
+  bundle(kit, [[0.39, 0.004, 0.256], [0.275, 0.003, 0.2], [0.265, 0.003, 0.0], [0.28, 0.003, -0.09], [KIT.sensorX - 0.004, 0.06, -0.085], [KIT.sensorX - 0.006, 0.14, -0.078]], [BLACK, RED, '#2f6fd1', '#e2c21c'], 0.0016, device([19, 20, 21, 22], [['A4', '#2f6fd1'], ['A5', '#e2c21c']]));
+  // 모터 드라이버: VCC·GND는 위 레일, IA ← D5, IB ← D6. 나사 단자 → 모터(빨강·검정).
+  const driverPin = z => plugAt(driver, new THREE.Vector3(-0.008, 0.0036, z));
+  jumper(driverPin(DRIVER_PINS.VCC), holeOf(1, 'top+'), RED, 0.02); jumper(driverPin(DRIVER_PINS.GND), holeOf(2, 'top-'), BLACK, 0.02);
+  jumper(pinOf('D5'), driverPin(DRIVER_PINS.IA), '#e2c21c', 0.03); jumper(pinOf('D6'), driverPin(DRIVER_PINS.IB), '#2fae5a', 0.03);
+  const terminals = [-0.0062, 0.0062].map(z => driver.localToWorld(new THREE.Vector3(0.0055, 0.012, z)).toArray());
+  bundle(kit, [[0.352, 0.03, 0.262], [0.36, 0.004, 0.258], [0.47, 0.003, 0.255], [0.56, 0.003, 0.19], [0.575, 0.02, 0.125], [L, 0.04, 0.105]], [RED, BLACK], 0.0018, terminals);
+  // 전원: 배럴 플러그를 DC 잭에 끝까지 꽂고(보드 바깥 -x로 나옴) 스위치까지 케이블.
+  const { jack } = uno, plugGeo = new THREE.CylinderGeometry(0.0045, 0.0045, 0.022, 20); plugGeo.rotateZ(Math.PI / 2);
+  mesh(uno.group, plugGeo, M.rubber, jack.x - 0.011, jack.y, jack.z);
+  const at = (x, y, z) => uno.group.localToWorld(new THREE.Vector3(x, y, z)).toArray();
+  wire(kit, [at(jack.x - 0.022, jack.y, jack.z), at(jack.x - 0.032, jack.y - 0.004, jack.z), at(jack.x - 0.05, -0.012, jack.z + 0.004), [0.2, 0.003, 0.34], [0.12, 0.003, 0.35], [0.04, 0.004, 0.355]], '#151515', 0.0019);
   mesh(kit, new THREE.BoxGeometry(0.032, 0.012, 0.016), M.rubber, 0.025, 0.006, 0.357).rotation.y = 0.15;
   wire(kit, [[0.008, 0.004, 0.36], [-0.05, 0.003, 0.375], [-0.11, 0.005, 0.4]], '#151515', 0.0019);
   const plug = new THREE.CylinderGeometry(0.0045, 0.0045, 0.024, 20); plug.rotateZ(Math.PI / 2); mesh(kit, plug, M.rubber, -0.123, 0.005, 0.402);
@@ -198,13 +253,12 @@ export function createKitScene(container, onStatus) {
   /** 게이트 피벗 좌표 [x,y,z]. */
   function gate(name) { const g = KIT.gates[name]; return [g.x, 0.08, g.z]; }
 
-  // 실측 부품 GLB 불러오기: 보드, 서보·혼, 근접센서, 베어링, 2020 프로파일.
-  const loader = new GLTFLoader(); let loaded = 0; const total = 6;
+  // 실측 부품 GLB 불러오기: 서보·혼, 근접센서, 베어링, 2020 프로파일. (보드는 arduino.js에서 직접 모델링)
+  const loader = new GLTFLoader(); let loaded = 0; const total = 5;
   const done = () => onStatus(`${++loaded}/${total} 실측 부품 모델 준비 완료`);
   const load = (url, apply) => loader.loadAsync(url).then(g => { const root = g.scene; root.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); apply(root); done(); })
     .catch(error => { onStatus('부품 모델 오류 · 일부 형상 생략'); console.error('키트 부품 로드 실패', url, error); });
   const ready = Promise.all([
-    load(unoUrl, root => { const b = new THREE.Box3().setFromObject(root), c = b.getCenter(new THREE.Vector3()); root.position.set(-c.x, 0.014 - b.min.y, -c.z); board.add(root); }),
     load(servoUrl, root => {
       const top = topCenter(root);
       for (const { gate: g } of Object.values(gates)) { const s = root.clone(); s.position.set(-top.x, -top.y, -top.z); const holder = new THREE.Group(); holder.add(s); holder.position.set(g.x, KIT.beltY - 0.002, g.z); holder.rotation.y = Math.PI / 2; kit.add(holder); }
@@ -241,7 +295,7 @@ export function createKitScene(container, onStatus) {
   let activeView = 'overview';
   function view(name) {
     activeView = name;
-    const presets = { overview: [[-0.02, 0.56, 0.86], [0.33, 0.05, 0.09]], sensor: [[0.2, 0.22, 0.2], [0.27, 0.1, -0.02]], gates: [[0.3, 0.3, 0.27], [0.46, 0.08, 0]], board: [[0.26, 0.2, 0.5], [0.3, 0.02, 0.29]] };
+    const presets = { overview: [[-0.02, 0.56, 0.86], [0.33, 0.05, 0.09]], sensor: [[0.2, 0.22, 0.2], [0.27, 0.1, -0.02]], gates: [[0.3, 0.3, 0.27], [0.46, 0.08, 0]], board: [[0.31, 0.2, 0.47], [0.35, 0.02, 0.3]] };
     const [p, t] = presets[name] || presets.overview; camera.position.fromArray(p); controls.target.fromArray(t);
     // 창이 좁으면(세로형) 같은 범위가 보이도록 카메라를 비율만큼 뒤로 뺀다.
     if (camera.aspect < 1.6) camera.position.sub(controls.target).multiplyScalar(1.6 / Math.max(0.5, camera.aspect)).add(controls.target);

@@ -19,3 +19,6 @@ Z-up mm → Y-up m). Changes: colours were assigned or replaced as noted.
 
 Converter: occt-import-js (https://github.com/kovacsv/occt-import-js, LGPL-2.1),
 used only at conversion time; it is not shipped with this project.
+
+Note (2026-11-10): uno.glb is no longer used by the app (the board is now modelled
+in src/conveyor/arduino.js as a standard Arduino UNO R3). The file is kept unchanged.

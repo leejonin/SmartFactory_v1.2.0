@@ -2,7 +2,7 @@
 
 한 공장 안의 선택한 1~4개 공정에서 상자가 컨베이어를 지나 QR 판독을 받고, AGV(자동 운반 차량)에 실려 목적지 도크까지 이동하는 과정을 보여주는 한국어 3D 웹앱입니다. 브라우저에서 물류 흐름을 관찰하는 시뮬레이션이며 실제 설비를 제어하지 않습니다.
 
-- 앱 버전: **v0.0.20** — package.json과 화면 기준. 저장소 이름 `SmartFactory_v1.1.0`과 구분합니다.
+- 앱 버전: **v1.1.2** — package.json과 화면 기준. 저장소 이름 `SmartFactory_v1.1.2`와 같은 번호로 맞췄습니다(v0.0.21 다음 버전).
 - README 문서 버전: v0.0.21
 - 최초 생성: 2026-11-02 (KST) / 수정: 2026-11-02 (KST)
 - 기능 ID: `SW_Browser_Logistics_001` / 관련 기능 ID: 없음
@@ -54,8 +54,8 @@ flowchart LR
 Git과 위 요구 조건에 맞는 Node.js를 설치한 뒤, 원하는 작업 폴더의 터미널에서 실행합니다.
 
 ```powershell
-git clone https://github.com/leejonin/SmartFactory_v1.1.0.git
-cd SmartFactory_v1.1.0
+git clone https://github.com/leejonin/SmartFactory_v1.1.2.git
+cd SmartFactory_v1.1.2
 npm ci
 npm run dev
 ```
@@ -75,11 +75,11 @@ npm run preview
 
 ## GitHub Pages 배포
 
-배포 주소: [SmartFactory 실행](https://leejonin.github.io/SmartFactory_v1.1.0/)
+배포 주소: [SmartFactory 실행](https://leejonin.github.io/SmartFactory_v1.1.2/)
 
 `.github/workflows/pages.yml`이 main 브랜치 push 또는 수동 실행을 받아 Node.js 24에서 `npm ci` → `npm test` → `npm run build`를 실행하고 `dist/`를 GitHub Pages에 배포합니다. 저장소 Settings → Pages의 Source는 GitHub Actions로 설정합니다. 배포 성공 여부는 저장소 Actions의 `GitHub Pages 배포` 실행 결과에서 확인합니다.
 
-`vite.config.js`의 base는 `/SmartFactory_v1.1.0/`입니다. JavaScript·CSS와 GLB 주소 모두 이 하위 경로를 사용합니다. 로컬 dev·preview에서도 터미널에 표시되는 이 경로의 주소를 엽니다. 저장소 이름이나 배포 경로를 바꾸면 base와 위 링크를 함께 바꿔야 합니다.
+`vite.config.js`의 base는 상대 경로 `./`입니다. JavaScript·CSS와 GLB 주소가 현재 배포 폴더 기준으로 정해지므로 저장소 이름이 바뀌어도 base는 바꾸지 않습니다. 저장소 이름을 바꾸면 위 clone 명령과 배포 링크만 함께 바꿉니다.
 
 ## 화면 조작
 
@@ -170,3 +170,9 @@ Git에 포함하는 파일은 소스·테스트·HTML·패키지 설정과 잠�
 ### v0.0.19 공정 컨베이어 상세 화면
 
 공장 화면에서 공정 컨베이어를 클릭하면 `conveyor.html?line=L1~L4` 상세 화면이 열립니다. 공두이노 DIY 컨베이어 색상 분류 키트를 실물 크기로 재현했습니다. 주황 3D 프린팅 프레임, 2020 알루미늄 프로파일, 녹색 벨트, 원통형 근접센서, 컬러센서, SG90 서보 분류 팔(노랑·초록), 아크릴 상자 3개, 아크릴 받침 위 아두이노 UNO, 전선이 들어 있습니다. 블록이 투입→감지→판독→게이트→색별 상자 순서로 움직입니다. 보드·서보·센서·베어링·프로파일은 [FreeCAD-library](https://github.com/FreeCAD/FreeCAD-library)(CC-BY 3.0)의 실측 STEP 모델을 GLB로 변환해 썼습니다(`Asset/kit-parts/LICENSE.txt`). 기능 ID는 `SW_Browser_ConveyorKit_001`이며 테스트는 27개 통과입니다. `npm run build`는 이번 작업 환경에서 실행하지 못했습니다.
+
+### v0.0.21 아두이노 보드·배선
+
+컨베이어 상세 화면의 제어 보드를 표준 Arduino UNO R3 모양(파란 기판, 암 헤더, USB-B, DC 잭, ATmega328P)으로 바꿨습니다. 모든 전선은 실제 조립처럼 헤더 구멍과 400구 브레드보드에 꽂힙니다.
+- 5V·GND는 브레드보드 레일로 나눕니다.
+- 신호는 D9·D10(서보), D2(근접센서), A4·A5(컬러센서), D5·D6(모터 드라이버)으로 갑니다.
