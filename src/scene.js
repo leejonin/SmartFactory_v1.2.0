@@ -4,6 +4,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { INLETS, DOCKS, MAX_AGVS, agvHome } from './simulation.js';
 import { LAYERS } from './layout.js';
+import { createUR5e } from './ur5eModel.js';
+import { STATIONS, ROBOT_SCALE, TOOL_LENGTH } from './robotSimulation.js';
 import rollerUrl from '../Asset/straight-roller-conveyor.glb?url';
 import beltUrl from '../Asset/belt-conveyor-straight.glb?url';
 import agvUrl from '../Asset/warehouse-agv-with-shelf.glb?url';
@@ -18,6 +20,15 @@ import palletJackUrl from '../Asset/aws-warehouse/PalletJackB_01.glb?url';
 import deskUrl from '../Asset/aws-warehouse/DeskC_01.glb?url';
 import binUrl from '../Asset/aws-warehouse/TrashCanC_01.glb?url';
 import concreteUrl from '../Asset/aws-warehouse/concrete_floor.jpg?url';
+// UR5e 링크 메시: Universal_Robots_ROS2_Description(BSD-3) DAE를 GLB로 변환. 출처·라이선스는 Asset/ur5e/LICENSE.txt.
+import urBaseUrl from '../Asset/ur5e/base.glb?url';
+import urShoulderUrl from '../Asset/ur5e/shoulder.glb?url';
+import urUpperarmUrl from '../Asset/ur5e/upperarm.glb?url';
+import urForearmUrl from '../Asset/ur5e/forearm.glb?url';
+import urWrist1Url from '../Asset/ur5e/wrist1.glb?url';
+import urWrist2Url from '../Asset/ur5e/wrist2.glb?url';
+import urWrist3Url from '../Asset/ur5e/wrist3.glb?url';
+const UR5E_PARTS={base:urBaseUrl,shoulder:urShoulderUrl,upperarm:urUpperarmUrl,forearm:urForearmUrl,wrist1:urWrist1Url,wrist2:urWrist2Url,wrist3:urWrist3Url};
 
 /** 건물 치수(m). 도크 벽은 도크 레벨러 바깥, 탑차 후면이 닿는 선이다. */
 const WALL_X=24.9, LEFT_X=-25, BACK_Z=-16, CUT_H=1.1, FULL_H=7;
@@ -105,12 +116,14 @@ function column(parent,x,z,height){
 /** 실제 장비 모델·공장 환경·카메라를 생성하고 시뮬레이션 상태를 그린다. SW_Browser_Logistics_001
  * @param {HTMLElement} container 캔버스를 넣을 요소. @param {object[][]} qrImages 공정별 QR 이미지. @param {(text:string)=>void} onAssetStatus 장비 로딩 문구.
  * @param {(lineId:string)=>void} [onConveyorSelect] 컨베이어를 클릭(끌기 아님)했을 때 공정 id로 호출된다.
+ * @param {{mode?:'agv'|'robot'}} [options] 'robot'이면 AGV 대신 UR5e 3대와 출하 컨베이어를 배치한다(로봇팔 씬). SW_Browser_Robot_001
  */
-export function createScene(container,qrImages,onAssetStatus,onConveyorSelect) {
+export function createScene(container,qrImages,onAssetStatus,onConveyorSelect,{mode='agv'}={}) {
+  const robotMode=mode==='robot';
   const scene=new THREE.Scene();scene.background=new THREE.Color('#cbd4d3');scene.fog=new THREE.Fog('#cbd4d3',400,750);
   const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
-  renderer.domElement.className='scene';renderer.domElement.setAttribute('aria-label','4개 공정의 16개 유입구, QR 4개, AGV, 출하 도크와 탑차 각 12대를 보여주는 3D 공장');container.prepend(renderer.domElement);
+  renderer.domElement.className='scene';renderer.domElement.setAttribute('aria-label',robotMode?'4개 공정의 16개 유입구, QR 4개, UR5e 협동로봇, 출하 컨베이어와 탑차':'4개 공정의 16개 유입구, QR 4개, AGV, 출하 도크와 탑차 각 12대를 보여주는 3D 공장');container.prepend(renderer.domElement);
   const camera=new THREE.PerspectiveCamera(42,1,0.1,800);camera.position.set(28,31,34);
   const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,0,-1);controls.enableDamping=true;controls.maxPolarAngle=Math.PI/2.08;controls.minDistance=4;controls.maxDistance=400;
   // 지도처럼 왼쪽 드래그로 바닥을 따라 화면을 끌어 이동하고, 오른쪽 드래그로 회전한다. 터치는 한 손가락 이동, 두 손가락 확대·회전.
@@ -147,10 +160,12 @@ export function createScene(container,qrImages,onAssetStatus,onConveyorSelect) {
     // 움직이지 않는 도크·벽·바닥 표시 구조물. 다 만든 뒤 재질별로 합쳐 한 번에 그린다.
     const decor=new THREE.Group();
   label(scene,'공정 ' + definition.id.slice(1) + ' / PROCESS',-15,0.025,12.6,9,'#486367',true);
+  if(!robotMode){
   for(let x=-18;x<22;x+=2) block(scene,1.1,0.015,0.07,x,0.006,3.1,'#d8b15d');
   for(let z=-11;z<=12;z+=1.7){block(scene,0.08,0.015,0.85,14.5,0.01,z,'#d8b15d');block(scene,0.08,0.015,0.85,20.5,0.01,z,'#8ac0bb');}
   label(scene,'OUTBOUND',16,0.025,-10,3,'#6f633d',true);
   label(scene,'RETURN',19,0.025,14,3,'#426a65',true);
+  }
   const beltGroup=new THREE.Group();beltGroup.userData.lineId=definition.id;scene.add(beltGroup);
   const placeholders=[];
   /** 모델 로딩 전에도 이송 경로를 정확하게 표시한다. */
@@ -179,23 +194,40 @@ export function createScene(container,qrImages,onAssetStatus,onConveyorSelect) {
   block(scanner,0.16,0.4,0.16,0,2.78,0.82,'#e8a33a');block(scanner,0.42,0.6,0.22,0,1.2,-1.16,'#d9dedc');
   const scanLight=block(scanner,0.015,0.015,1.2,0,1.61,0,'#55dbb3');scanLight.material=new THREE.MeshBasicMaterial({color:'#56e8b5'});
   label(scene,'QR / SCAN',8,0.035,2,3,'#3e5a5d',true);
+  const agv=new THREE.Group(),agvModels=[];let fallbackAgv=null;
+  if(!robotMode){
   for(const z of [1.6,3.4])block(scene,2.1,0.018,0.05,10,0.02,z,'#ddbe74');
   label(scene,'NEXT AGV',10,0.035,4.1,2,'#6d653c',true);
   block(scene,2,0.12,1.3,9,0.92,0,'#50646a');
-  const agv=new THREE.Group();scene.add(agv);
-  const agvModels=[agv];
-  const fallbackAgv=block(agv,1.65,0.55,1.35,0,0.38,0,'#d2a34c');
+  scene.add(agv);agvModels.push(agv);
+  fallbackAgv=block(agv,1.65,0.55,1.35,0,0.38,0,'#d2a34c');
   block(agv,1.6,0.12,1.25,0,0.94,0,'#8c9b9a');
   for(const z of [-0.66,0.66])block(agv,1.3,0.18,0.06,0,0.83,z,'#b8c6c5');
   for(let i=0;i<MAX_AGVS;i++){
     const {x,z}=agvHome(i);block(decor,2.2,0.018,1.9,x,0.006,z,'#6f7679');block(decor,0.5,0.03,0.3,x-0.85,0.02,z,'#2a3236');
     label(scene,`AGV ${String(i+1).padStart(2,'0')}`,x,0.035,z+1.15,2,'#425f61',true);
   }
+  } else {
+    // 로봇팔 씬: 판독 뒤 메인 연장 컨베이어(x 8→16.4), 로봇별 출하 컨베이어(→ 탑차 안 x 25.4).
+    // 로봇 3대는 메인 컨베이어 옆 받침대(높이 1.05 m) 위에 서서 자기 목적지 상자만 집는다. 배치 좌표는 robotSimulation.js STATIONS.
+    for(const x of [9.05,11.15,13.25,15.35])conveyor(x,0,2.1);
+    const segments=(x0,x1,z)=>{const n=Math.ceil((x1-x0)/4.3),len=(x1-x0)/n;for(let k=0;k<n;k++)conveyor(x0+len*(k+0.5),z,len);};
+    conveyor(10.5,-4.175,4.45,true);segments(9.825,25.4,-7);
+    segments(16.9,25.4,0);
+    conveyor(13,4.175,4.45,true);segments(12.325,25.4,7);
+    STATIONS.forEach((st,k)=>{
+      const {x,y,z}=st.base;
+      block(scene,0.5,y-0.06,0.5,x,(y-0.06)/2,z,'#5d6a70');block(scene,0.62,0.06,0.62,x,y-0.03,z,'#3b464b');
+      const zone=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.1),patterned('hatch',3,3,0.6));zone.rotation.x=-Math.PI/2;zone.position.set(x,0.012,z);decor.add(zone);
+      label(scene,`ROBOT 0${k+1}`,x+(k===1?1.4:-1.4),0.035,z+(k===2?0.4:-0.4),1.8,'#3f5b5f',true);
+      const lane=st.lane,mid=lane[lane.length-2];
+      label(scene,`출하 0${k+1} → 탑차`,mid.x+5,0.035,mid.z+(k===2?1.15:-1.15),2.6,COLORS[k],true);
+    });
+  }
   const dockModels=[];
   for(let i=0;i<3;i++) {
     const d=DOCKS[i];
-    block(decor,2.2,0.018,1.9,19,0.02,d.z-2.5,'#6f7679');
-    label(scene,`도크 0${i+1} 대기`,19,0.035,d.z-3.8,2.6,'#426a65',true);
+    if(!robotMode){block(decor,2.2,0.018,1.9,19,0.02,d.z-2.5,'#6f7679');label(scene,`도크 0${i+1} 대기`,19,0.035,d.z-3.8,2.6,'#426a65',true);}
     // 도크 앞 하역 구역(목적지 색 경계선)과 문턱 안전 표시.
     block(decor,3.0,0.02,3.4,d.x-0.3,0.01,d.z,'#8e9290');
     for(const z of [-1.7,1.7])block(decor,3.0,0.035,0.09,d.x-0.3,0.03,d.z+z,COLORS[i]);
@@ -238,7 +270,7 @@ export function createScene(container,qrImages,onAssetStatus,onConveyorSelect) {
   const tapeGeometry=new THREE.BoxGeometry(0.1,0.557,0.725),bandGeometry=new THREE.BoxGeometry(0.86,0.08,0.73);
   const boxMaterial=material('#bd955e'), tapeMaterial=material('#dfc596');
   const qrMaterials=qrTextures.map(t=>new THREE.MeshBasicMaterial({map:t,side:THREE.DoubleSide}));
-  const boxes=new Map();
+  const boxes=new Map(),robotModels=[];
   /** 활성 상자만 보관하고 배송된 메시를 장면에서 제거한다. */
   function sync(sim) {
     const alive=new Set(sim.boxes.map(b=>b.id));for(const [id,g] of boxes)if(!alive.has(id)){scene.remove(g);boxes.delete(id);}
@@ -251,15 +283,27 @@ export function createScene(container,qrImages,onAssetStatus,onConveyorSelect) {
         const band=new THREE.Mesh(bandGeometry,material(COLORS[regions.indexOf(b.destination)]));band.position.y=-0.19;g.add(band);
         boxes.set(b.id,g);scene.add(g);
       }
-      g.position.set(b.x,1.29,b.z);
+      g.position.set(b.x,b.y??1.29,b.z);
     }
+    if(robotMode)sim.robots.forEach((r,i)=>robotModels[i]?.setJoints(r.q));
+    else {
     while(agvModels.length<sim.agvs.length){const clone=agv.clone(true);scene.add(clone);agvModels.push(clone);}
     while(agvModels.length>sim.agvs.length)scene.remove(agvModels.pop());
     sim.agvs.forEach((a,i)=>agvModels[i].position.set(a.x,0,a.z));
+    }
     scanLight.visible=sim.boxes.some(b=>b.state==='scan') && Math.sin(sim.time*15)>0;
   }
 
   /** GLB 적용 실패는 상태 표시로 알리고 기본 장비 형상을 유지한다. */
+  /** UR5e 링크 7종을 한 묶음으로 불러와(공정 간 공유) 스테이션마다 로봇을 조립한다. 묶음은 장비 1종으로 센다. */
+  async function loadRobots(){
+    try{
+      if(!assetCache.has('ur5e'))assetCache.set('ur5e',Promise.all(Object.entries(UR5E_PARTS).map(([key,url])=>loader.loadAsync(url).then(r=>[key,r.scene]))).then(Object.fromEntries));
+      const meshes=await assetCache.get('ur5e');
+      STATIONS.forEach(st=>{const robot=createUR5e(meshes,{scale:ROBOT_SCALE,toolLength:TOOL_LENGTH});robot.root.position.set(st.base.x,st.base.y,st.base.z);robot.root.rotation.y=st.yaw;scene.add(robot.root);robotModels.push(robot);});
+      loaded++;onAssetStatus(`${loaded}/${LAYERS.length*ASSETS_PER_LAYER} 전체 공정 장비·설비 준비 완료`);
+    }catch(error){onAssetStatus(`로봇 모델 오류 · 로봇 숨김`);console.error('UR5e 로드 실패',error);}
+  }
   async function load(url,apply) {
     try {if(!assetCache.has(url))assetCache.set(url,loader.loadAsync(url));const result=await assetCache.get(url);apply(result.scene.clone(true));loaded++;onAssetStatus(`${loaded}/${LAYERS.length*ASSETS_PER_LAYER} 전체 공정 장비·설비 준비 완료`);}
     catch(error){onAssetStatus(`장비 모델 오류 · 기본 형상 사용`);console.error('장비 로드 실패',error);}
@@ -267,7 +311,7 @@ export function createScene(container,qrImages,onAssetStatus,onConveyorSelect) {
   const assetsReady=Promise.all([
     load(rollerUrl,model=>{const cartons=[];model.traverse(n=>{if(/Cartons/i.test(n.name))cartons.push(n);});cartons.forEach(n=>n.removeFromParent());for(const p of placeholders.filter(p=>!p.vertical)){beltGroup.remove(p.g);const m=fitModel(model,p.length,1,1.35);m.position.set(p.x,0,p.z);beltGroup.add(m);}}),
     load(beltUrl,model=>{const cartons=[];model.traverse(n=>{if(/Cartons/i.test(n.name))cartons.push(n);});cartons.forEach(n=>n.removeFromParent());for(const p of placeholders.filter(p=>p.vertical)){beltGroup.remove(p.g);const m=fitModel(model,p.length,1,1.35);m.rotation.y=Math.PI/2;m.position.set(p.x,0,p.z);beltGroup.add(m);}}),
-    load(agvUrl,model=>{const remove=[];model.traverse(n=>{if(/Fabric[_ ]bins|Pod[_ ]frame|Stored[_ ]boxes/i.test(n.name))remove.push(n);});remove.forEach(n=>n.removeFromParent());const m=fitModel(model,1.8,0.82,1.45);agv.remove(fallbackAgv);agv.add(m);while(agvModels.length>1)scene.remove(agvModels.pop());}),
+    robotMode?loadRobots():load(agvUrl,model=>{const remove=[];model.traverse(n=>{if(/Fabric[_ ]bins|Pod[_ ]frame|Stored[_ ]boxes/i.test(n.name))remove.push(n);});remove.forEach(n=>n.removeFromParent());const m=fitModel(model,1.8,0.82,1.45);agv.remove(fallbackAgv);agv.add(m);while(agvModels.length>1)scene.remove(agvModels.pop());}),
     load(truckUrl,model=>{const batched=truckBatch||(truckBatch=batchStatic(model));for(const bay of dockModels){bay.clear();bay.add(fitModel(batched,6.6,3.25,2.5));}}),
     ...Object.entries({shelfD:shelfDUrl,shelfE:shelfEUrl,highRack:highRackUrl,palletC:palletCUrl,palletD:palletDUrl,palletJack:palletJackUrl,desk:deskUrl,bin:binUrl})
       .map(([key,url])=>load(url,model=>{const bounds=new THREE.Box3().setFromObject(model);model.position.y-=bounds.min.y;const group=new THREE.Group();for(const s of propSpots[key])place(group,model,s.x,s.z,s.r);scene.add(batchStatic(group));}))
@@ -300,7 +344,7 @@ export function createScene(container,qrImages,onAssetStatus,onConveyorSelect) {
   function view(name) {
     activeView=name;
     const center=(33+29*(visibleCount-1))/2-16,scale=0.48+0.52*(visibleCount-1)/3;
-    const presets={top:[[6,175*scale,center+0.01],[6,0,center]],qr:[[14,8,10],[7,1,0]],agv:[[24,15,21],[14,0.7,2]],overview:[[6+84*scale,145*scale,center+121*scale],[6,0,center]]};
+    const presets={top:[[6,175*scale,center+0.01],[6,0,center]],qr:[[14,8,10],[7,1,0]],agv:[[24,15,21],[14,0.7,2]],robot:[[21,8.5,9.5],[13.2,1.2,-0.8]],overview:[[6+84*scale,145*scale,center+121*scale],[6,0,center]]};
     const [p,t]=presets[name]||presets.overview;camera.position.fromArray(p);controls.target.fromArray(t);
     if(name==='top'||name==='overview')camera.position.sub(controls.target).multiplyScalar(Math.max(1,(name==='top'?0.5:0.85)/camera.aspect)).add(controls.target);
     controls.update();

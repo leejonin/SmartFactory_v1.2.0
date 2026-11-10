@@ -24,3 +24,13 @@
 - 코드: ./conveyor.html, ./src/conveyor/sorter.js, kit.js, main.js, style.css. 테스트 ./tests/sorter.test.js. 에셋 ./Asset/kit-parts/.
 - 문서: ./Info/소프트웨어/컨베이어키트/SW_Browser_ConveyorKit_001/컨베이어키트.md
 - 이전 ID: 해당 없음.
+
+## 2026-11-10 18:22:00 KST 추가 — 지시자: 이종인 / 작업자: Claude Opus 5.5 (Claude)
+
+| 기능 ID | 영역 / 실행환경 / 영문중분류 | 중분류명 대응 | 기능·책임 | 관련 ID | 상태 |
+|---|---|---|---|---|---|
+| SW_Browser_Robot_001 | SW / Browser / Robot | 로봇팔 / Robot | 로봇팔 공정 화면: 공정마다 UR5e 3대가 QR 판독 상자를 목적지별 출하 컨베이어에 놓아 탑차로 보냄(기구학·3D 조립·상태기계) | SW_Browser_Logistics_001, SW_Browser_ConveyorKit_001 | 구현 완료, 2026-11-10 로컬 테스트·빌드 통과 |
+
+- 코드: ./robot.html, ./src/robotMain.js, robotSimulation.js, ur5e.js, ur5eModel.js. 공유 변경 ./src/scene.js(mode), factory.js(SimulationClass), sceneSwitch.js. 테스트 ./tests/robotSimulation.test.js. 에셋 ./Asset/ur5e/.
+- 문서: ./Info/소프트웨어/로봇팔/SW_Browser_Robot_001/로봇팔공정.md
+- 이전 ID: 해당 없음.

@@ -5,11 +5,12 @@ import { encodeRegion, decodeRegion } from './qr.js';
 /** 동일 운영 로직의 선택한 공정을 독립 실행하고 기존 화면에 합계를 제공한다. SW_Browser_Logistics_001 */
 export class FactorySimulation {
   /** 공정당 같은 AGV 대수를 사용하고 QR 이미지는 목적지마다 한 번 생성한다.
-   * @param {object} options AGV 대수(agvCount, 기본 4), 공정 수(layerCount, 기본 1), 난수원(random).
+   * @param {object} options AGV 대수(agvCount, 기본 4), 공정 수(layerCount, 기본 1), 난수원(random),
+   *   공정 상태기계 클래스(SimulationClass, 기본 Simulation; 로봇팔 씬은 RobotSimulation. SW_Browser_Robot_001).
    */
-  constructor({agvCount=4, layerCount=1, random=Math.random}={}) {
+  constructor({agvCount=4, layerCount=1, random=Math.random, SimulationClass=Simulation}={}) {
     this.qrImages=LAYERS.map(layer=>layer.regions.map(encodeRegion));
-    this.allLayers=LAYERS.map((layer,i)=>({...layer,simulation:new Simulation({agvCount,random,regions:layer.regions,
+    this.allLayers=LAYERS.map((layer,i)=>({...layer,simulation:new SimulationClass({agvCount,random,regions:layer.regions,
       decode:b=>decodeRegion(this.qrImages[i][layer.regions.indexOf(b.destination)],layer.regions)})}));
     this.layers=this.allLayers.slice(0,1);
     this.setLayerCount(layerCount);
@@ -39,6 +40,8 @@ export class FactorySimulation {
   get delivered(){return this.layers.flatMap(layer=>layer.simulation.delivered);}
   /** 화면에서 공정을 구분하는 장비 상태. */
   get agvs(){return this.layers.flatMap(layer=>layer.simulation.agvs.map(a=>({...a,layer:layer.id})));}
+  /** 로봇팔 씬의 로봇 상태(공정 id 포함). AGV 공정이면 빈 배열. */
+  get robots(){return this.layers.flatMap(layer=>(layer.simulation.robots||[]).map(r=>({...r,layer:layer.id})));}
   /** 최근 판독 결과를 공정 이름·시각과 함께 전달한다. */
   get lastRead(){return this.layers.flatMap(layer=>layer.simulation.lastRead?[{...layer.simulation.lastRead,layer:layer.id}]:[]).sort((a,b)=>b.time-a.time)[0]||null;}
   /** 서로 같은 상자 번호라도 공정 이름으로 구분하는 최근 기록. */
